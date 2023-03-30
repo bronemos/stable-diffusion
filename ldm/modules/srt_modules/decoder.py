@@ -2,33 +2,46 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from srt.layers import RayEncoder, Transformer, PositionalEncoding
-from srt.utils import nerf
+from ldm.modules.srt_modules.layers import RayEncoder, Transformer, PositionalEncoding
+from ldm.modules.srt_modules.utils import nerf
 
 
 class RayPredictor(nn.Module):
-    def __init__(self, num_att_blocks=2, pos_start_octave=0, out_dims=3,
-                 z_dim=768, input_mlp=False, output_mlp=True):
+    def __init__(
+        self,
+        num_att_blocks=2,
+        pos_start_octave=0,
+        out_dims=3,
+        z_dim=768,
+        input_mlp=False,
+        output_mlp=True,
+    ):
         super().__init__()
 
         if input_mlp:  # Input MLP added with OSRT improvements
             self.input_mlp = nn.Sequential(
-                nn.Linear(180, 360),
-                nn.ReLU(),
-                nn.Linear(360, 180))
+                nn.Linear(180, 360), nn.ReLU(), nn.Linear(360, 180)
+            )
         else:
             self.input_mlp = None
 
-        self.query_encoder = RayEncoder(pos_octaves=15, pos_start_octave=pos_start_octave,
-                                        ray_octaves=15)
-        self.transformer = Transformer(180, depth=num_att_blocks, heads=12, dim_head=z_dim // 12,
-                                       mlp_dim=z_dim * 2, selfatt=False, kv_dim=z_dim)
+        self.query_encoder = RayEncoder(
+            pos_octaves=15, pos_start_octave=pos_start_octave, ray_octaves=15
+        )
+        self.transformer = Transformer(
+            180,
+            depth=num_att_blocks,
+            heads=12,
+            dim_head=z_dim // 12,
+            mlp_dim=z_dim * 2,
+            selfatt=False,
+            kv_dim=z_dim,
+        )
 
         if output_mlp:
             self.output_mlp = nn.Sequential(
-                nn.Linear(180, 128),
-                nn.ReLU(),
-                nn.Linear(128, out_dims))
+                nn.Linear(180, 128), nn.ReLU(), nn.Linear(128, out_dims)
+            )
         else:
             self.output_mlp = None
 
@@ -50,13 +63,18 @@ class RayPredictor(nn.Module):
 
 
 class SRTDecoder(nn.Module):
-    """ Scene Representation Transformer Decoder, as presented in the SRT paper at CVPR 2022"""
+    """Scene Representation Transformer Decoder, as presented in the SRT paper at CVPR 2022"""
+
     def __init__(self, num_att_blocks=2, pos_start_octave=0):
         super().__init__()
-        self.ray_predictor = RayPredictor(num_att_blocks=num_att_blocks,
-                                          pos_start_octave=pos_start_octave,
-                                          out_dims=3, z_dim=768,
-                                          input_mlp=False, output_mlp=True)
+        self.ray_predictor = RayPredictor(
+            num_att_blocks=num_att_blocks,
+            pos_start_octave=pos_start_octave,
+            out_dims=3,
+            z_dim=768,
+            input_mlp=False,
+            output_mlp=True,
+        )
 
     def forward(self, z, x, rays, **kwargs):
         output = self.ray_predictor(z, x, rays)
@@ -64,13 +82,17 @@ class SRTDecoder(nn.Module):
 
 
 class ImprovedSRTDecoder(nn.Module):
-    """ Scene Representation Transformer Decoder with the improvements from Appendix A.4 in the OSRT paper."""
+    """Scene Representation Transformer Decoder with the improvements from Appendix A.4 in the OSRT paper."""
+
     def __init__(self, num_att_blocks=2, pos_start_octave=0):
         super().__init__()
-        self.allocation_transformer = RayPredictor(num_att_blocks=num_att_blocks,
-                                                   pos_start_octave=pos_start_octave,
-                                                   z_dim=768,
-                                                   input_mlp=True, output_mlp=False)
+        self.allocation_transformer = RayPredictor(
+            num_att_blocks=num_att_blocks,
+            pos_start_octave=pos_start_octave,
+            z_dim=768,
+            input_mlp=True,
+            output_mlp=False,
+        )
         self.render_mlp = nn.Sequential(
             nn.Linear(180, 1536),
             nn.ReLU(),
@@ -92,23 +114,21 @@ class ImprovedSRTDecoder(nn.Module):
 class NerfNet(nn.Module):
     def __init__(self, num_att_blocks=2, pos_start_octave=0):
         super().__init__()
-        self.pos_encoder = PositionalEncoding(num_octaves=15, start_octave=pos_start_octave)
+        self.pos_encoder = PositionalEncoding(
+            num_octaves=15, start_octave=pos_start_octave
+        )
 
-        self.transformer = Transformer(90, depth=num_att_blocks, heads=12, dim_head=64,
-                                       mlp_dim=1536, selfatt=False)
+        self.transformer = Transformer(
+            90, depth=num_att_blocks, heads=12, dim_head=64, mlp_dim=1536, selfatt=False
+        )
 
         self.color_predictor = nn.Sequential(
-            nn.Linear(90, 128),
-            nn.ReLU(),
-            nn.Linear(128, 3),
-            nn.Sigmoid())
+            nn.Linear(90, 128), nn.ReLU(), nn.Linear(128, 3), nn.Sigmoid()
+        )
 
         self.density_predictor = nn.Sequential(
-            nn.Linear(90, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1),
-            nn.Softplus())
-
+            nn.Linear(90, 128), nn.ReLU(), nn.Linear(128, 1), nn.Softplus()
+        )
 
     def forward(self, z, x, rays):
         """
@@ -129,8 +149,10 @@ class NerfNet(nn.Module):
 class NerfDecoder(nn.Module):
     def __init__(self, num_att_blocks=2, pos_start_octave=0, use_fine_net=False):
         super().__init__()
-        nerf_kwargs = {'num_att_blocks': num_att_blocks,
-                       'pos_start_octave': pos_start_octave}
+        nerf_kwargs = {
+            "num_att_blocks": num_att_blocks,
+            "pos_start_octave": pos_start_octave,
+        }
 
         self.coarse_net = NerfNet(**nerf_kwargs)
         if use_fine_net:
@@ -148,6 +170,7 @@ class NerfDecoder(nn.Module):
 
         imgs, extras = render_nerf(self, z, x, rays, **render_kwargs)
         return imgs, extras
+
 
 def eval_samples(scene_function, z, coords, rays):
     """
@@ -170,9 +193,18 @@ def eval_samples(scene_function, z, coords, rays):
     return density, color
 
 
-def render_nerf(model, z, camera_pos, rays, num_coarse_samples=128,
-                num_fine_samples=64, min_dist=0.035, max_dist=35., min_z=None,
-                deterministic=False):
+def render_nerf(
+    model,
+    z,
+    camera_pos,
+    rays,
+    num_coarse_samples=128,
+    num_fine_samples=64,
+    min_dist=0.035,
+    max_dist=35.0,
+    min_z=None,
+    deterministic=False,
+):
     """
     Render single NeRF image.
     Args:
@@ -182,27 +214,42 @@ def render_nerf(model, z, camera_pos, rays, num_coarse_samples=128,
     """
     extras = {}
 
-    coarse_depths, coarse_coords = nerf.get_nerf_sample_points(camera_pos, rays,
-                                                               num_samples=num_coarse_samples,
-                                                               min_dist=min_dist, max_dist=max_dist,
-                                                               deterministic=deterministic,
-                                                               min_z=min_z)
+    coarse_depths, coarse_coords = nerf.get_nerf_sample_points(
+        camera_pos,
+        rays,
+        num_samples=num_coarse_samples,
+        min_dist=min_dist,
+        max_dist=max_dist,
+        deterministic=deterministic,
+        min_z=min_z,
+    )
 
-    coarse_densities, coarse_colors = eval_samples(model.coarse_net, z, coarse_coords, rays)
+    coarse_densities, coarse_colors = eval_samples(
+        model.coarse_net, z, coarse_coords, rays
+    )
 
     coarse_img, coarse_depth, coarse_depth_dist = nerf.draw_nerf(
-        coarse_densities, coarse_colors, coarse_depths)
+        coarse_densities, coarse_colors, coarse_depths
+    )
 
     if num_fine_samples < 1:
-        return coarse_img, {'depth': coarse_depth}
+        return coarse_img, {"depth": coarse_depth}
     elif num_fine_samples == 1:
         fine_depths = coarse_depth.unsqueeze(-1)
-        fine_coords = camera_pos.unsqueeze(-2) + rays.unsqueeze(-2) * fine_depths.unsqueeze(-1)
+        fine_coords = camera_pos.unsqueeze(-2) + rays.unsqueeze(
+            -2
+        ) * fine_depths.unsqueeze(-1)
     else:
         fine_depths, fine_coords = nerf.get_fine_nerf_sample_points(
-            camera_pos, rays, coarse_depth_dist, coarse_depths,
-            min_dist=min_dist, max_dist=max_dist, num_samples=num_fine_samples,
-            deterministic=deterministic)
+            camera_pos,
+            rays,
+            coarse_depth_dist,
+            coarse_depths,
+            min_dist=min_dist,
+            max_dist=max_dist,
+            num_samples=num_fine_samples,
+            deterministic=deterministic,
+        )
 
     fine_depths = fine_depths.detach()
     fine_coords = fine_coords.detach()
@@ -211,23 +258,27 @@ def render_nerf(model, z, camera_pos, rays, num_coarse_samples=128,
     coords_agg = torch.cat((coarse_coords, fine_coords), -2)
 
     depths_agg, sort_idxs = torch.sort(depths_agg, -1)
-    coords_agg = torch.gather(coords_agg, -2, sort_idxs.unsqueeze(-1).expand_as(coords_agg))
+    coords_agg = torch.gather(
+        coords_agg, -2, sort_idxs.unsqueeze(-1).expand_as(coords_agg)
+    )
 
-    fine_pres, fine_values, = eval_samples(model.fine_net, z, coords_agg, rays)
+    (
+        fine_pres,
+        fine_values,
+    ) = eval_samples(model.fine_net, z, coords_agg, rays)
 
     fine_img, fine_depth, depth_dist = nerf.draw_nerf(
-        fine_pres, fine_values, depths_agg)
+        fine_pres, fine_values, depths_agg
+    )
 
     def rgba_composite_white(rgba):
         rgb = rgba[..., :3]
         alpha = rgba[..., 3:]
-        result = torch.ones_like(rgb) * (1. - alpha) + rgb * alpha
+        result = torch.ones_like(rgb) * (1.0 - alpha) + rgb * alpha
         return result
 
-    extras['depth'] = fine_depth
-    extras['coarse_img'] = rgba_composite_white(coarse_img)
-    extras['coarse_depth'] = coarse_depth
+    extras["depth"] = fine_depth
+    extras["coarse_img"] = rgba_composite_white(coarse_img)
+    extras["coarse_depth"] = coarse_depth
 
     return rgba_composite_white(fine_img), extras
-
-

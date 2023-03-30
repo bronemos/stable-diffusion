@@ -1,0 +1,12 @@
+#!/bin/bash
+#SBATCH --time=10:00:00
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=32G
+#SBATCH --gres=gpu:v100:1
+#SBATCH --output=/scratch/work/spieglb1/thesis-github-repos/stable-diffusion/logs/slurm/slurm-%A_%a.out
+
+module purge
+module -q load anaconda3
+source activate "/scratch/work/spieglb1/.conda_envs/ldm"
+
+srun python -u main.py --base configs/autoencoder/autoencoder_kl_8x8x64_nmr.yaml -t --gpus 0,

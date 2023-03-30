@@ -8,7 +8,7 @@ from torch.utils.data import IterableDataset
 
 import os
 
-from srt.utils.nerf import transform_points
+from ldm.modules.srt_modules.utils.nerf import transform_points
 
 
 class NMRShardedDataset(IterableDataset):
@@ -58,6 +58,9 @@ class NMRShardedDataset(IterableDataset):
         self.rot_mat = np.array(
             [[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]
         )
+
+    def __len__(self):
+        return 10
 
     def __iter__(self):
         return self
@@ -132,8 +135,12 @@ class NMRShardedDataset(IterableDataset):
             pixels_sel = pixels_flat
             cpos_sel = cpos_flat
 
+        # print(input_image.shape)
+
         result = {
-            "input_images": np.expand_dims(input_image, 0),  # [1, 3, h, w]
+            "image": np.transpose(input_image * 255, (1, 2, 0)),
+            # "image": input_image.reshape(width, height, -1),
+            # "input_images": np.expand_dims(input_image, 0),  # [1, 3, h, w]
             "input_camera_pos": np.expand_dims(camera_pos[view_idx], 0),  # [1, 3]
             "input_rays": np.expand_dims(rays[view_idx], 0),  # [1, h, w, 3]
             "target_pixels": pixels_sel,  # [p, 3]
