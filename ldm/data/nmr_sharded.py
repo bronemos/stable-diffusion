@@ -4,14 +4,14 @@ import yaml
 import webdataset as wds
 from io import BytesIO
 
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, Dataset
 
 import os
 
 from ldm.modules.srt_modules.utils.nerf import transform_points
 
 
-class NMRShardedDataset(IterableDataset):
+class NMRShardedDatasetAE(Dataset):
     def __init__(
         self,
         path,
@@ -40,14 +40,16 @@ class NMRShardedDataset(IterableDataset):
         self.max_len = max_len
         self.canonical = canonical_view
         self.full_scale = full_scale
-        self.dataset = (
-            wds.WebDataset(
-                os.path.join(path, f"NMR-{mode}-{{00..12}}.tar"), shardshuffle=True
+        self.dataset = list(
+            (
+                wds.WebDataset(
+                    os.path.join(path, f"NMR-{mode}-{{00..12}}.tar"), shardshuffle=True
+                )
+                .shuffle(100)
+                .decode("rgb")
             )
-            .shuffle(100)
-            .decode("rgb")
         )
-        self.dataset_iter = iter(self.dataset)
+        self.num_records = len(self.dataset)
         self.idx = 0
 
         self.render_kwargs = {"min_dist": 2.0, "max_dist": 4.0}
@@ -60,22 +62,87 @@ class NMRShardedDataset(IterableDataset):
         )
 
     def __len__(self):
-        return 10
+        return self.num_records
 
-    def __iter__(self):
-        return self
+    def __getitem__(self, idx):
+        sample = self.dataset[idx]
 
-    def __next__(self):
-        sample = next(self.dataset_iter)
+        result = {
+            "image": sample["image.png"],
+            "scene_hash": sample["__key__"],
+        }
 
-        view_idx = self.idx % 24
+        return result
+
+
+class NMRShardedDataset(Dataset):
+    def __init__(
+        self,
+        path,
+        mode,
+        points_per_item=2048,
+        max_len=None,
+        canonical_view=True,
+        full_scale=False,
+        single_image=True,
+    ):
+        """Loads the NMR dataset as found at
+        https://s3.eu-central-1.amazonaws.com/avg-projects/differentiable_volumetric_rendering/data/NMR_Dataset.zip
+        Hosted by Niemeyer et al. (https://github.com/autonomousvision/differentiable_volumetric_rendering)
+        Args:
+            path (str): Path to dataset.
+            mode (str): 'train', 'val', or 'test'.
+            points_per_item (int): Number of target points per scene.
+            max_len (int): Limit to the number of entries in the dataset.
+            canonical_view (bool): Return data in canonical camera coordinates (like in SRT), as opposed
+                to world coordinates.
+            full_scale (bool): Return all available target points, instead of sampling.
+        """
+
+        self.path = path
+        self.mode = mode
+        self.points_per_item = points_per_item
+        self.max_len = max_len
+        self.canonical = canonical_view
+        self.full_scale = full_scale
+        self.single_image = single_image
+        self.dataset = list(
+            (
+                wds.WebDataset(
+                    os.path.join(path, f"NMR-{mode}-{{00..12}}.tar"), shardshuffle=True
+                )
+                .shuffle(100)
+                .decode("rgb")
+            )
+        )
+        self.num_records = len(self.dataset)
+
+        self.render_kwargs = {"min_dist": 2.0, "max_dist": 4.0}
+
+        # Rotation matrix making z=0 is the ground plane.
+        # Ensures that the scenes are layed out in the same way as the other datasets,
+        # which is convenient for visualization.
+        self.rot_mat = np.array(
+            [[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]
+        )
+
+    def __len__(self):
+        return self.num_records
+
+    def __getitem__(self, idx):
+        self.sample = self.dataset[idx]
+
+        view_idx = idx % 24
+        tgt_idx = np.random.randint(24)
+
         target_views = np.array(list(set(range(24)) - set([view_idx])))
 
-        images = [sample[f"{i:04d}.png"] for i in range(24)]
+        images = [self.sample[f"{i:04d}.png"] for i in range(24)]
         images = np.stack(images, 0).astype(np.float32) / 255.0
         input_image = np.transpose(images[view_idx], (2, 0, 1))
+        target_image = np.transpose(images[tgt_idx], (2, 0, 1))
 
-        cameras = np.load(BytesIO(sample["cameras"]))
+        cameras = np.load(BytesIO(self.sample["cameras"]))
         cameras = {k: v for k, v in cameras.items()}  # Load all matrices into memory
 
         for i in range(24):  # Apply rotation matrix to rotate coordinate system
@@ -138,21 +205,20 @@ class NMRShardedDataset(IterableDataset):
         # print(input_image.shape)
 
         result = {
-            "image": np.transpose(input_image * 255, (1, 2, 0)),
+            "original": np.transpose(input_image * 255, (1, 2, 0)),
             # "image": input_image.reshape(width, height, -1),
             # "input_images": np.expand_dims(input_image, 0),  # [1, 3, h, w]
-            "input_camera_pos": np.expand_dims(camera_pos[view_idx], 0),  # [1, 3]
-            "input_rays": np.expand_dims(rays[view_idx], 0),  # [1, h, w, 3]
+            "target": np.transpose(target_image * 255, (1, 2, 0)),
+            "input_camera_pos": np.expand_dims(camera_pos[tgt_idx], 0),  # [1, 3]
+            "input_rays": np.expand_dims(rays[tgt_idx], 0),  # [1, h, w, 3]
             "target_pixels": pixels_sel,  # [p, 3]
             "target_camera_pos": cpos_sel,  # [p, 3]
             "target_rays": rays_sel,  # [p, 3]
-            "sceneid": self.idx,  # int
-            "scene_hash": sample["__key__"],
+            "sceneid": idx,  # int
+            "scene_hash": self.sample["__key__"],
         }
 
         if self.canonical:
             result["transform"] = canonical_extrinsic  # [3, 4] (optional)
-
-        self.idx += 1
 
         return result

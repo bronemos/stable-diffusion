@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 
 from packaging import version
 from omegaconf import OmegaConf
-from torch.utils.data import random_split, DataLoader, Dataset, Subset, IterableDataset
+from torch.utils.data import random_split, DataLoader, Dataset, Subset
 from functools import partial
 from PIL import Image
 
@@ -138,10 +138,7 @@ class WrappedDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        if isinstance(self.data, IterableDataset):
-            return next(self.data)
-        else:
-            return self.data[idx]
+        return self.data[idx]
 
 
 def worker_init_fn(_):
@@ -215,7 +212,7 @@ class DataModuleFromConfig(pl.LightningDataModule):
     def _train_dataloader(self):
         is_iterable_dataset = isinstance(
             self.datasets["train"], Txt2ImgIterableBaseDataset
-        ) or isinstance(self.datasets["train"], IterableDataset)
+        )
         if is_iterable_dataset or self.use_worker_init_fn:
             init_fn = worker_init_fn
         else:
@@ -232,7 +229,6 @@ class DataModuleFromConfig(pl.LightningDataModule):
         if (
             isinstance(self.datasets["validation"], Txt2ImgIterableBaseDataset)
             or self.use_worker_init_fn
-            or isinstance(self.datasets["validation"], IterableDataset)
         ):
             init_fn = worker_init_fn
         else:
@@ -248,7 +244,7 @@ class DataModuleFromConfig(pl.LightningDataModule):
     def _test_dataloader(self, shuffle=False):
         is_iterable_dataset = isinstance(
             self.datasets["test"], Txt2ImgIterableBaseDataset
-        ) or isinstance(self.datasets["test"], IterableDataset)
+        )
         if is_iterable_dataset or self.use_worker_init_fn:
             init_fn = worker_init_fn
         else:
@@ -269,7 +265,6 @@ class DataModuleFromConfig(pl.LightningDataModule):
         if (
             isinstance(self.datasets["predict"], Txt2ImgIterableBaseDataset)
             or self.use_worker_init_fn
-            or isinstance(self.datasets["predict"], IterableDataset)
         ):
             init_fn = worker_init_fn
         else:
@@ -396,7 +391,7 @@ class ImageLogger(Callback):
             )
             path = os.path.join(root, filename)
             os.makedirs(os.path.split(path)[0], exist_ok=True)
-            np.save(os.path.join(root, filename[:-4] + ".npy"), grid)
+            # np.save(os.path.join(root, filename[:-4] + ".npy"), grid)
             Image.fromarray(grid).save(path)
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):

@@ -143,7 +143,7 @@ class ImprovedSRTEncoder(nn.Module):
             768, depth=num_att_blocks, heads=12, dim_head=64, mlp_dim=1536, selfatt=True
         )
 
-    def forward(self, images, camera_pos, rays):
+    def forward(self, input_dict):
         """
         Args:
             images: [batch_size, num_images, 3, height, width]. Assume the first image is canonical.
@@ -152,6 +152,14 @@ class ImprovedSRTEncoder(nn.Module):
         Returns:
             scene representation: [batch_size, num_patches, channels_per_patch]
         """
+
+        images = torch.unsqueeze(
+            torch.permute(input_dict["original"] / 255, (0, 3, 1, 2)), 1
+        )
+        camera_pos = input_dict["input_camera_pos"]
+        rays = input_dict["input_rays"]
+
+        # print("shape of inputs", images.shape, rays.shape)
 
         batch_size, num_images = images.shape[:2]
 

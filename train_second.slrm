@@ -9,4 +9,4 @@ module purge
 module -q load anaconda3
 source activate "/scratch/work/spieglb1/.conda_envs/ldm"
 
-srun python -u main.py --base configs/autoencoder/autoencoder_kl_8x8x64_nmr.yaml -t --gpus 0,1
+python -u main.py --base configs/latent-diffusion/cin-ldm-vq-f8-nmr.yaml -t --gpus 0,1
