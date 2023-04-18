@@ -1691,6 +1691,10 @@ class LatentDiffusion(DDPM):
             elif self.cond_stage_key == "class_label":
                 xc = log_txt_as_img((x.shape[2], x.shape[3]), batch["human_label"])
                 log["conditioning"] = xc
+            elif self.cond_stage_key == "original":
+                xc = batch["original"]
+                xc = rearrange(xc, "b h w c -> b c h w")
+                log["conditioning"] = xc
             elif isimage(xc):
                 log["conditioning"] = xc
             if ismap(xc):

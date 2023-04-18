@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:v100:2
@@ -9,4 +9,4 @@ module purge
 module -q load anaconda3
 source activate "/scratch/work/spieglb1/.conda_envs/ldm"
 
-python -u main.py --base configs/latent-diffusion/cin-ldm-vq-f8-nmr.yaml -t --gpus 0,1
+python -u main.py --base configs/latent-diffusion/cin-ldm-vq-f8-nmr.yaml -t -r logs/2023-04-16T17-34-00_cin-ldm-vq-f8-nmr --gpus 0,1
