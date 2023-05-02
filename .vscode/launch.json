@@ -13,8 +13,10 @@
             "justMyCode": true,
             "args": [
                 "--base",
-                "configs/autoencoder/autoencoder_kl_8x8x64_nmr.yaml",
+                "configs/latent-diffusion/cin-ldm-vq-f8-nmr-debug.yaml",
                 "-t",
+                "--gpus",
+                "0,",
             ]
         }
     ]

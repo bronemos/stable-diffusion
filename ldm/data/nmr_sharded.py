@@ -16,6 +16,8 @@ class NMRShardedDatasetAE(Dataset):
         self,
         path,
         mode,
+        start_shard=0,
+        end_shard=12,
         points_per_item=2048,
         max_len=None,
         canonical_view=True,
@@ -43,7 +45,10 @@ class NMRShardedDatasetAE(Dataset):
         self.dataset = list(
             (
                 wds.WebDataset(
-                    os.path.join(path, f"NMR-{mode}-{{00..12}}.tar"), shardshuffle=True
+                    os.path.join(
+                        path, f"NMR-{mode}-{{{start_shard:02d}..{end_shard:02d}}}.tar"
+                    ),
+                    shardshuffle=True,
                 )
                 .shuffle(100)
                 .decode("rgb")
@@ -80,6 +85,8 @@ class NMRShardedDataset(Dataset):
         self,
         path,
         mode,
+        start_shard=0,
+        end_shard=12,
         points_per_item=2048,
         max_len=None,
         canonical_view=True,
@@ -109,7 +116,10 @@ class NMRShardedDataset(Dataset):
         self.dataset = list(
             (
                 wds.WebDataset(
-                    os.path.join(path, f"NMR-{mode}-{{00..12}}.tar"), shardshuffle=True
+                    os.path.join(
+                        path, f"NMR-{mode}-{{{start_shard:02d}..{end_shard:02d}}}.tar"
+                    ),
+                    shardshuffle=True,
                 )
                 .shuffle(100)
                 .decode("rgb")
